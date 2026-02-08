@@ -7,8 +7,9 @@ const app = express();
 
 app.use(cors());
 app.use(express.json());
-app.use(express.static("../client"));
-app.use(express.static("../dashboard"));
+app.use("/client", express.static("../client"));
+app.use("/dashboard", express.static("../dashboard"));
+
 
 
 const server = http.createServer(app);
