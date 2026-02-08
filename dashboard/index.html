@@ -1,0 +1,21 @@
+<h2>🚨 Send Emergency Alert</h2>
+
+<input id="msg" placeholder="Type alert message" />
+<button onclick="send()">Send Alert</button>
+
+<script>
+async function send() {
+
+  const message = document.getElementById("msg").value;
+
+  await fetch("http://localhost:3000/alert", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ message })
+  });
+
+  alert("Alert sent!");
+}
+</script>
