@@ -2,6 +2,7 @@ const express = require("express");
 const http = require("http");
 const { Server } = require("socket.io");
 const cors = require("cors");
+const fs = require("fs");
 
 const app = express();
 
@@ -17,6 +18,24 @@ const io = new Server(server);
 
 let alerts = [];
 
+// load alerts from file
+function loadAlerts() {
+
+  if (!fs.existsSync("alerts.json")) {
+    fs.writeFileSync("alerts.json", "[]");
+  }
+
+  alerts = JSON.parse(fs.readFileSync("alerts.json"));
+}
+
+
+// save alerts to file
+function saveAlerts() {
+  fs.writeFileSync("alerts.json", JSON.stringify(alerts));
+}
+
+// load at startup
+loadAlerts();
 
 // send alert
 app.post("/alert", (req, res) => {
@@ -45,6 +64,8 @@ io.on("connection", () => {
 });
 
 
-server.listen(3000, () => {
-    console.log("Server running at http://localhost:3000");
+const PORT = process.env.PORT || 3000;
+
+server.listen(PORT, () => {
+  console.log("Server running on port", PORT);
 });
