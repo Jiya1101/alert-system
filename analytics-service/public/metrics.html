@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Analytics Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; background: #e9ecef; padding: 20px; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 20px; }
+        .card { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .stats { display: flex; justify-content: space-around; margin-bottom: 20px; }
+        .stat-box { background: white; padding: 20px; border-radius: 10px; text-align: center; width: 30%; font-size: 1.2em; font-weight: bold; }
+        .stat-box span { font-size: 2em; color: #0077b6; display: block; margin-top: 10px; }
+    </style>
+</head>
+<body>
+
+    <h1>📊 Microservice Analytics Dashboard</h1>
+
+    <div class="stats">
+        <div class="stat-box">Total Alerts Generated <span id="total_created">0</span></div>
+        <div class="stat-box">Total Alerts Resolved <span id="total_resolved">0</span></div>
+        <div class="stat-box">Resolution Rate <span id="res_rate">0%</span></div>
+    </div>
+
+    <div class="grid">
+        <div class="card">
+            <h3>Alerts by Severity</h3>
+            <canvas id="severityChart"></canvas>
+        </div>
+        <div class="card">
+            <h3>Top Failing Servers</h3>
+            <canvas id="serverChart"></canvas>
+        </div>
+    </div>
+
+<script>
+    let severityChartInst = null;
+    let serverChartInst = null;
+
+    async function fetchData() {
+        const res = await fetch('/api/metrics');
+        const data = await res.json();
+        
+        document.getElementById("total_created").innerText = data.total_created;
+        document.getElementById("total_resolved").innerText = data.total_resolved;
+        
+        const rate = data.total_created > 0 ? Math.round((data.total_resolved / data.total_created) * 100) : 0;
+        document.getElementById("res_rate").innerText = rate + "%";
+
+        renderCharts(data);
+    }
+
+    function renderCharts(data) {
+        const sevCtx = document.getElementById('severityChart').getContext('2d');
+        const srvCtx = document.getElementById('serverChart').getContext('2d');
+
+        if(severityChartInst) severityChartInst.destroy();
+        if(serverChartInst) serverChartInst.destroy();
+
+        severityChartInst = new Chart(sevCtx, {
+            type: 'doughnut',
+            data: {
+                labels: ['Critical', 'Warning', 'Info'],
+                datasets: [{
+                    data: [
+                        data.severity_counts['Critical'] || 0, 
+                        data.severity_counts['Warning'] || 0, 
+                        data.severity_counts['Info'] || 0
+                    ],
+                    backgroundColor: ['#e63946', '#f4a261', '#457b9d']
+                }]
+            }
+        });
+
+        const serverLabels = Object.keys(data.top_servers);
+        const serverData = Object.values(data.top_servers);
+
+        serverChartInst = new Chart(srvCtx, {
+            type: 'bar',
+            data: {
+                labels: serverLabels,
+                datasets: [{
+                    label: 'Alerts',
+                    data: serverData,
+                    backgroundColor: '#1d3557'
+                }]
+            },
+            options: { scales: { y: { beginAtZero: true } } }
+        });
+    }
+
+    fetchData();
+    setInterval(fetchData, 3000); // Poll metrics every 3s
+</script>
+
+</body>
+</html>

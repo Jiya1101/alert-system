@@ -1,21 +1,174 @@
-<h2>📢 Live Alerts</h2>
+<!DOCTYPE html>
+<html>
 
-<ul id="list"></ul>
+<head>
+  <title>Live Alerts | Distributed Cluster</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: #1a1a2e;
+      color: #fff;
+      padding: 20px;
+    }
 
-<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    #cluster-info {
+      background: #16213e;
+      padding: 10px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      border-left: 5px solid #0f3460;
+      font-size: 0.9em;
+    }
 
-<script>
-const socket = io();
+    .alert {
+      padding: 15px;
+      border-radius: 8px;
+      margin-bottom: 10px;
+      transition: all 0.3s ease;
+      border-left: 8px solid transparent;
+    }
 
+    .critical {
+      background: #e63946;
+      border-color: #941b24;
+      box-shadow: 0 0 15px rgba(230, 57, 70, 0.4);
+    }
 
-// when server sends alert
-socket.on("ALERT", (data) => {
+    .warning {
+      background: #f4a261;
+      border-color: #bc6c25;
+    }
 
-    const li = document.createElement("li");
-    li.innerText = data.message;
+    .info {
+      background: #457b9d;
+      border-color: #1d3557;
+    }
 
-    document.getElementById("list").appendChild(li);
+    .resolved {
+      opacity: 0.4;
+      filter: grayscale(80%);
+    }
 
-    alert("🚨 " + data.message);
-});
-</script>
+    .meta {
+      font-size: 0.85em;
+      opacity: 0.8;
+      margin-top: 5px;
+    }
+
+    .reply-box {
+      margin-top: 10px;
+      display: flex;
+      gap: 10px;
+    }
+
+    .reply-input {
+      flex-grow: 1;
+      padding: 8px;
+      border-radius: 4px;
+      border: none;
+      outline: none;
+    }
+
+    .reply-btn {
+      padding: 8px 15px;
+      cursor: pointer;
+      border-radius: 4px;
+      border: none;
+      background: #0f3460;
+      color: white;
+      font-weight: bold;
+    }
+
+    .reply-btn:hover {
+      background: #533483;
+    }
+
+    .logical-time {
+      float: right;
+      font-family: monospace;
+      background: rgba(0, 0, 0, 0.3);
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+
+<body>
+
+  <div id="cluster-info">
+    🌐 Connected to Cluster Node: <span id="node-port">Detecting...</span>
+  </div>
+
+  <h2>🚨 Live IT Alerts</h2>
+  <div id="list"></div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    // Detect which port we are currently talking to
+    const currentPort = window.location.port;
+    document.getElementById('node-port').innerText = currentPort || "80 (Standard)";
+
+    const socket = io();
+
+    function playAlarm() {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const osc = ctx.createOscillator();
+      osc.type = 'square';
+      osc.frequency.setValueAtTime(880, ctx.currentTime);
+      osc.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.2);
+    }
+
+    socket.on("ALERT", (data) => {
+      if (data.severity === "Critical") playAlarm();
+
+      // Prevent duplicate entries if multiple nodes broadcast (Common in clusters)
+      if (document.getElementById(`alert-${data.id}`)) return;
+
+      const div = document.createElement("div");
+      div.id = "alert-" + data.id;
+      const severityClass = data.severity ? data.severity.toLowerCase() : 'info';
+      div.className = `alert ${severityClass}`;
+
+      div.innerHTML = `
+      <span class="logical-time">T=${data.lamport_clock || '??'}</span>
+      <strong>${data.message}</strong>
+      <div class="meta">
+        IP: ${data.server_ip} | Code: ${data.error_code} | Node: ${currentPort}
+      </div>
+      <div class="reply-box" id="replybox-${data.id}">
+        <input type="text" id="reply-${data.id}" class="reply-input" placeholder="Resolution details...">
+        <button class="reply-btn" onclick="resolve(${data.id})">Fix</button>
+      </div>
+    `;
+
+      document.getElementById("list").prepend(div);
+    });
+
+    function resolve(id) {
+      const msg = document.getElementById("reply-" + id).value;
+      // Emit to our current connected node
+      socket.emit("RESOLVE_ALERT", { id: id, response: msg });
+    }
+
+    socket.on("ALERT_RESOLVED", (data) => {
+      const alertEl = document.getElementById("alert-" + data.id);
+      const box = document.getElementById("replybox-" + data.id);
+
+      if (alertEl && box) {
+        alertEl.classList.add('resolved');
+        box.innerHTML = `✅ <b>Resolved:</b> ${data.response || 'Fixed'}`;
+      }
+    });
+
+    // Handle disconnection (Useful for when a node in your cluster dies)
+    socket.on("disconnect", () => {
+      document.getElementById('node-port').innerText = "DISCONNECTED - Attempting Failover...";
+      document.getElementById('node-port').style.color = "#e63946";
+    });
+  </script>
+
+</body>
+
+</html>

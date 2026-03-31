@@ -1,0 +1,46 @@
+<definitions name="AlertService"
+             targetNamespace="http://www.examples.com/wsdl/AlertService.wsdl"
+             xmlns="http://schemas.xmlsoap.org/wsdl/"
+             xmlns:soap="http://schemas.xmlsoap.org/wsdl/soap/"
+             xmlns:tns="http://www.examples.com/wsdl/AlertService.wsdl"
+             xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+
+   <message name="TriggerAlertRequest">
+      <part name="message" type="xsd:string"/>
+      <part name="server_ip" type="xsd:string"/>
+      <part name="error_code" type="xsd:string"/>
+      <part name="severity" type="xsd:string"/>
+   </message>
+
+   <message name="TriggerAlertResponse">
+      <part name="id" type="xsd:int"/>
+      <part name="status" type="xsd:string"/>
+   </message>
+
+   <portType name="AlertPortType">
+      <operation name="TriggerAlert">
+         <input message="tns:TriggerAlertRequest"/>
+         <output message="tns:TriggerAlertResponse"/>
+      </operation>
+   </portType>
+
+   <binding name="AlertBinding" type="tns:AlertPortType">
+      <soap:binding style="rpc" transport="http://schemas.xmlsoap.org/soap/http"/>
+      <operation name="TriggerAlert">
+         <soap:operation soapAction="TriggerAlert"/>
+         <input>
+            <soap:body use="literal" namespace="http://www.examples.com/wsdl/AlertService.wsdl"/>
+         </input>
+         <output>
+            <soap:body use="literal" namespace="http://www.examples.com/wsdl/AlertService.wsdl"/>
+         </output>
+      </operation>
+   </binding>
+
+   <service name="AlertService">
+      <port name="AlertPort" binding="tns:AlertBinding">
+         <soap:address location="http://localhost:3000/wsdl"/>
+      </port>
+   </service>
+
+</definitions>

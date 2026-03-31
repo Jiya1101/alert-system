@@ -1,21 +1,238 @@
-<h2>🚨 Send Emergency Alert</h2>
+<!DOCTYPE html>
+<html>
 
-<input id="msg" placeholder="Type alert message" />
-<button onclick="send()">Send Alert</button>
+<head>
+  <title>Emergency Dashboard</title>
 
-<script>
-async function send() {
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f4f4f4;
+      padding: 20px;
+    }
 
-  const message = document.getElementById("msg").value;
+    .card {
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      margin-bottom: 20px;
+    }
 
-  await fetch("http://localhost:3000/alert", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({ message })
-  });
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+    }
 
-  alert("Alert sent!");
-}
-</script>
+    th,
+    td {
+      padding: 10px;
+      border: 1px solid #ddd;
+      text-align: left;
+    }
+
+    th {
+      background: #0077b6;
+      color: white;
+    }
+
+    .cluster-status {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .node-badge {
+      background: #e0e0e0;
+      padding: 8px 12px;
+      border-radius: 20px;
+      font-weight: bold;
+      font-size: 0.9em;
+    }
+
+    .node-leader {
+      background: #ffbc42;
+      color: #fff;
+      border: 2px solid #d49a00;
+    }
+
+    .node-active {
+      background: #2a9d8f;
+      color: #fff;
+    }
+
+    input {
+      padding: 10px;
+      width: 300px;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+    }
+
+    button {
+      padding: 10px 18px;
+      background: #e63946;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: bold;
+    }
+
+    button:hover {
+      background: #c1121f;
+    }
+
+    .online {
+      color: green;
+      font-weight: bold;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="card" style="background: #111; color: white;">
+    <h3 style="margin-top:0;">🌐 Distributed Cluster Status</h3>
+    <div id="cluster-container" class="cluster-status">
+      <span class="node-badge">Waiting for layout...</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h1>Emergency Alert Control Panel</h1>
+    <h3>Send IT Alert</h3>
+    <input id="msg" list="msgList" placeholder="Type alert message" style="margin-bottom: 10px; display: block;" />
+    <datalist id="msgList">
+      <option value="Database Timeout">
+      <option value="High CPU Usage">
+      <option value="Network Link Down">
+    </datalist>
+
+    <input id="server_ip" list="ipList" placeholder="Server IP (e.g. 10.0.0.1)" />
+    <datalist id="ipList">
+      <option value="192.168.1.10">
+      <option value="192.168.1.50">
+      <option value="10.0.0.1">
+    </datalist>
+
+    <input id="error_code" list="errList" placeholder="Error Code (e.g. ERR-500)" />
+    <datalist id="errList">
+      <option value="ERR-500">
+      <option value="ERR-404">
+      <option value="ERR-503">
+    </datalist>
+    <select id="severity" style="padding: 10px; border-radius: 6px; border: 1px solid #ccc;">
+      <option value="Info">Info</option>
+      <option value="Warning">Warning</option>
+      <option value="Critical">Critical</option>
+    </select>
+
+    <button onclick="send()" style="margin-top: 10px; display: block;">Send Alert</button>
+  </div>
+
+  <div class="card">
+    <h3>🟢 Online Clients: <span id="online" class="online">0</span></h3>
+  </div>
+
+  <div class="card">
+    <h3>Alert Monitoring</h3>
+
+    <table id="table">
+      <tr>
+        <th>Message</th>
+        <th>Time</th>
+        <th>Delivered</th>
+      </tr>
+    </table>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket = io();
+
+    socket.on("CLUSTER_STATE", (data) => {
+      const container = document.getElementById("cluster-container");
+      container.innerHTML = "";
+
+      data.nodes.sort().forEach(port => {
+        const isLeader = (port === data.leader);
+        const isSelf = (port === data.current_port);
+
+        const badge = document.createElement("span");
+        badge.className = "node-badge " + (isLeader ? "node-leader" : "node-active");
+        badge.innerText = `Node ${port} ${isLeader ? '⭐ LEADER' : ''} ${isSelf ? '(You)' : ''}`;
+        container.appendChild(badge);
+      });
+    });
+
+    socket.on("ALERT", (data) => {
+      loadAlerts();
+    });
+
+    socket.on("ONLINE_COUNT", (count) => {
+      document.getElementById("online").innerText = count;
+    });
+
+    async function send() {
+      const message = document.getElementById("msg").value;
+      const server_ip = document.getElementById("server_ip").value;
+      const error_code = document.getElementById("error_code").value;
+      const severity = document.getElementById("severity").value;
+
+      await fetch("/alert", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message, server_ip, error_code, severity })
+      });
+
+      loadAlerts();
+    }
+
+    async function loadAlerts() {
+      const res = await fetch("/alerts");
+      const alerts = await res.json();
+
+      const table = document.getElementById("table");
+
+      let html = `
+        <thead>
+          <tr>
+            <th>Message</th>
+            <th>Server IP</th>
+            <th>Error Code</th>
+            <th>Severity</th>
+            <th>Status</th>
+            <th>Logical Time</th>
+          </tr>
+        </thead>
+        <tbody>
+      `;
+
+      alerts.forEach(a => {
+        const statusText = a.resolved ? `<span style="color:green; font-weight:bold;">Resolved: ${a.response_message || 'OK'}</span>` : `<span style="color:red; font-weight:bold;">Pending</span>`;
+        html += `
+          <tr>
+            <td>${a.message}</td>
+            <td>${a.server_ip}</td>
+            <td>${a.error_code}</td>
+            <td><strong style="color: ${a.severity === 'Critical' ? 'red' : (a.severity === 'Warning' ? 'orange' : 'blue')}">${a.severity}</strong></td>
+            <td>${statusText}</td>
+            <td>🕒 T=${a.lamport_clock || 0}</td>
+          </tr>
+        `;
+      });
+      html += `</tbody>`;
+      table.innerHTML = html;
+    }
+
+    // Bind real-time Websocket events instead of interval polling
+    socket.on("ALERT_RESOLVED", (data) => {
+      loadAlerts();
+    });
+
+    loadAlerts();
+  </script>
+
+</body>
+
+</html>
